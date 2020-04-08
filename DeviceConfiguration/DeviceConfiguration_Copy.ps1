@@ -13,7 +13,9 @@ param
 (
     [Parameter(Mandatory=$true)]
     [String]
-    $PolicyName
+    $PolicyName,
+    [Switch]
+    $CreateGroup
 )
 
 function Get-AuthToken {
@@ -279,6 +281,167 @@ Function Add-DeviceConfigurationPolicy(){
 }
 
 ####################################################
+Function Add-DeviceConfigurationPolicyAssignment(){
+
+<#
+.SYNOPSIS
+This function is used to add a device configuration policy assignment using the Graph API REST interface
+.DESCRIPTION
+The function connects to the Graph API Interface and adds a device configuration policy assignment
+.EXAMPLE
+Add-DeviceConfigurationPolicyAssignment -ConfigurationPolicyId $ConfigurationPolicyId -TargetGroupId $TargetGroupId
+Adds a device configuration policy assignment in Intune
+.NOTES
+NAME: Add-DeviceConfigurationPolicyAssignment
+#>
+
+[cmdletbinding()]
+
+param
+(
+    $ConfigurationPolicyId,
+    $TargetGroupId
+)
+
+$graphApiVersion = "Beta"
+$Resource = "deviceManagement/deviceConfigurations/$ConfigurationPolicyId/assign"
+    
+    try {
+
+        if(!$ConfigurationPolicyId){
+
+        write-host "No Configuration Policy Id specified, specify a valid Configuration Policy Id" -f Red
+        break
+
+        }
+
+        if(!$TargetGroupId){
+
+        write-host "No Target Group Id specified, specify a valid Target Group Id" -f Red
+        break
+
+        }
+
+        $ConfPolAssign = "$ConfigurationPolicyId" + "_" + "$TargetGroupId"
+
+$JSON = @"
+
+{
+  "deviceConfigurationGroupAssignments": [
+    {
+      "@odata.type": "#microsoft.graph.deviceConfigurationGroupAssignment",
+      "id": "$ConfPolAssign",
+      "targetGroupId": "$TargetGroupId"
+    }
+  ]
+}
+
+"@
+
+    $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
+    Invoke-RestMethod -Uri $uri -Headers $authToken -Method Post -Body $JSON -ContentType "application/json"
+
+    }
+    
+    catch {
+
+    $ex = $_.Exception
+    $errorResponse = $ex.Response.GetResponseStream()
+    $reader = New-Object System.IO.StreamReader($errorResponse)
+    $reader.BaseStream.Position = 0
+    $reader.DiscardBufferedData()
+    $responseBody = $reader.ReadToEnd();
+    Write-Host "Response content:`n$responseBody" -f Red
+    Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+    write-host
+    break
+
+    }
+
+}
+
+####################################################
+
+Function Add-DeviceConfigurationPolicyAssignment(){
+
+    <#
+    .SYNOPSIS
+    This function is used to add a device configuration policy assignment using the Graph API REST interface
+    .DESCRIPTION
+    The function connects to the Graph API Interface and adds a device configuration policy assignment
+    .EXAMPLE
+    Add-DeviceConfigurationPolicyAssignment -ConfigurationPolicyId $ConfigurationPolicyId -TargetGroupId $TargetGroupId
+    Adds a device configuration policy assignment in Intune
+    .NOTES
+    NAME: Add-DeviceConfigurationPolicyAssignment
+    #>
+    
+    [cmdletbinding()]
+    
+    param
+    (
+        $ConfigurationPolicyId,
+        $TargetGroupId
+    )
+    
+    $graphApiVersion = "Beta"
+    $Resource = "deviceManagement/deviceConfigurations/$ConfigurationPolicyId/assign"
+        
+        try {
+    
+            if(!$ConfigurationPolicyId){
+    
+            write-host "No Configuration Policy Id specified, specify a valid Configuration Policy Id" -f Red
+            break
+    
+            }
+    
+            if(!$TargetGroupId){
+    
+            write-host "No Target Group Id specified, specify a valid Target Group Id" -f Red
+            break
+    
+            }
+    
+            $ConfPolAssign = "$ConfigurationPolicyId" + "_" + "$TargetGroupId"
+    
+    $JSON = @"
+    
+{
+    "deviceConfigurationGroupAssignments": [
+    {
+        "@odata.type": "#microsoft.graph.deviceConfigurationGroupAssignment",
+        "id": "$ConfPolAssign",
+        "targetGroupId": "$TargetGroupId"
+    }
+    ]
+}
+
+"@
+
+        $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
+        Invoke-RestMethod -Uri $uri -Headers $authToken -Method Post -Body $JSON -ContentType "application/json"
+    
+        }
+        
+        catch {
+    
+            $ex = $_.Exception
+            $errorResponse = $ex.Response.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($errorResponse)
+            $reader.BaseStream.Position = 0
+            $reader.DiscardBufferedData()
+            $responseBody = $reader.ReadToEnd();
+            Write-Host "Response content:`n$responseBody" -f Red
+            Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+            write-host
+            break
+    
+        }
+    
+    }
+    
+####################################################
 
 #region Authentication
 
@@ -314,19 +477,19 @@ if($global:authToken){
 
 # Authentication doesn't exist, calling Get-AuthToken function
 
-else {
+Else {
 
-    if($User -eq $null -or $User -eq ""){
+    If ($User -eq $null -or $User -eq "") {
 
-    $User = Read-Host -Prompt "Please specify your user principal name for Azure Authentication"
-    Write-Host
+        $User = Read-Host -Prompt "Please specify your user principal name for Azure Authentication"
+        Write-Host
 
     }
 
-# Getting the authorization token
-$global:authToken = Get-AuthToken -User $User
+    # Getting the authorization token
+    $global:authToken = Get-AuthToken -User $User
 
-}
+}#END If-Else
 
 #endregion
 
@@ -336,14 +499,36 @@ $DCPs = Get-DeviceConfigurationPolicy -name $PolicyName
 
 foreach($DCP in $DCPs){
 
-    $DCP.displayName = "Copy - " + $DCP.displayName + " ($(get-date -f dd-MM-yyyy-H-mm-ss))"
+    $DCP.displayName = $DCP.displayName + " ($(get-date -f dd-MM-yyyy-H-mm-ss))"
 
-    Add-DeviceConfigurationPolicy (  $DCP | Select-Object -Property * -ExcludeProperty id,createdDateTime,lastModifiedDateTime,version,supportsScopeTags | ConvertTo-Json -Depth 5 )
+    $DeviceConfigurationPolicy = Add-DeviceConfigurationPolicy (  $DCP | Select-Object -Property * -ExcludeProperty id,createdDateTime,lastModifiedDateTime,version,supportsScopeTags | ConvertTo-Json -Depth 5 )
 
     write-host "New Device Configuration Policy created:"$DCP.displayName -f Yellow
 
+    If ( $CreateGroup ) {
+
+        $newAADGroupName = "cfg - Test - " + $DCP.displayName
+        $newAADGroupDescr = "Temporary group for Intune test device configurtion profile " + $DCP.displayName
+
+        try {
+          
+            $DeviceConfigurationGroup = New-AzureADGroup -Description $($newAADGroupDescr) -DisplayName $($newAADGroupName) -SecurityEnabled $true -MailEnabled $false -MailNickName "NotSet"
+
+            Add-DeviceConfigurationPolicyAssignment $DeviceConfigurationPolicy.Id $DeviceConfigurationGroup.ObjectId
+            Write-Host
+            Write-Host "New Device Configuration Policy "$DCP.displayName" assigned to group "$DeviceConfigurationGroup.displayName -f Yellow
+        }
+        catch {
+            $_.Exception
+            break
+        }
+
+
+
+    }#END If
+
     Write-Host
 
-}
+}#END foreach
 
 Write-Host
