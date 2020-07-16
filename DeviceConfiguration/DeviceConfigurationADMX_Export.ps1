@@ -39,7 +39,7 @@ NAME: Get-AuthToken
 	
 	$AadModule = Get-Module -Name "AzureAD" -ListAvailable
 	
-	if ($AadModule -eq $null)
+	if ($null -eq $AadModule)
 	{
 		
 		Write-Host "AzureAD PowerShell module not found, looking for AzureADPreview"
@@ -47,7 +47,7 @@ NAME: Get-AuthToken
 		
 	}
 	
-	if ($AadModule -eq $null)
+	if ($null -eq $AadModule)
 	{
 		write-host
 		write-host "AzureAD Powershell module not installed..." -f Red
@@ -448,7 +448,7 @@ if ($global:authToken)
 		
 		# Defining User Principal Name if not present
 		
-		if ($User -eq $null -or $User -eq "")
+		if ($null -eq $User -or $User -eq "")
 		{
 			
 			$User = Read-Host -Prompt "Please specify your user principal name for Azure Authentication"
@@ -466,7 +466,7 @@ if ($global:authToken)
 else
 {
 	
-	if ($User -eq $null -or $User -eq "")
+	if ($null -eq $User -or $User -eq "")
 	{
 		
 		$User = Read-Host -Prompt "Please specify your user principal name for Azure Authentication"
